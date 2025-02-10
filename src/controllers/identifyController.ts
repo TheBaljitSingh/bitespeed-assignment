@@ -1,6 +1,9 @@
 import { Request, Response } from "express";
 import { identifyContact } from "../services/contactServices";
 
+
+import prisma from "../config/db";
+
 export const identify = async (req: Request, res: Response): Promise<void> => {  
   // return type is important here void: this is typescript
   try {
@@ -8,10 +11,10 @@ export const identify = async (req: Request, res: Response): Promise<void> => {
 
 
 
-
     const result = await identifyContact(email, phoneNumber);
-    res.json({result}); // added the curly braces
+    res.json(result); // added the curly braces
   } catch (error: any) {
     res.status(400).json({ error: error.message }); 
   }
 };
+
