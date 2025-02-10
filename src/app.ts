@@ -1,8 +1,9 @@
 import express from "express";
 import bodyParser from "body-parser";
 import cors from "cors";
-import contactRoutes from "./routes/contactRoutes";
 import {config} from 'dotenv';
+
+import identyRoute from "./routes/identifyRoute";
 
 
 config();
@@ -13,7 +14,7 @@ app.use(cors());
 app.use(bodyParser.json());
 
 
-app.use("/api/v1/", contactRoutes);
+app.use("/api/v1/", identyRoute);
 
 app.use("/", (req, res)=>{
     res.send("Server is live now!!!");
