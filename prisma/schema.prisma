@@ -10,17 +10,35 @@ datasource db {
 
 model Contact {
   id             Int      @id @default(autoincrement())
-  phoneNumber    String?  @unique
-  email          String?  @unique
-  linkedId       Int?     
-  linkPrecedence String
+  phoneNumber    String?  // Removed @unique to allow multiple contacts with the same number
+  email          String?  // Removed @unique to allow flexibility
+  linkedId       Int?     // Nullable: Only secondary contacts have this field
+  linkPrecedence String   // "primary" or "secondary"
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   deletedAt      DateTime?
 
-  // Relationship
-  primaryContact Contact? @relation("ContactSelf", fields: [linkedId], references: [id])
-  secondaryContacts Contact[] @relation("ContactSelf")
+  // Self-referencing relation
+  primaryContact Contact? @relation("ContactLink", fields: [linkedId], references: [id])
+  secondaryContacts Contact[] @relation("ContactLink")
+}
+
+
+
+model User{
+  id Int @id @default(autoincrement())
+  email String @unique
+  name String?
+  posts Post[]
+}
+
+model Post{
+  id Int @id @default(autoincrement())
+  title String
+  content String?
+  published Boolean @default(false)
+  author    User     @relation(fields: [authorId], references: [id])
+  authorId Int
 }
 
 
