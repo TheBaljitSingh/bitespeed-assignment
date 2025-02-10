@@ -1,64 +1,86 @@
 import prisma from "../config/db";
 
-export const identifyContact = async (email?: string | null, phoneNumber?: string | null) => {
-  if (!email && !phoneNumber) {
-    throw new Error("Email or Phone Number required");
-  }
-
+export const identifyContact = async (email?: string, phoneNumber?: string) => {
   const existingContacts = await prisma.contact.findMany({
     where: {
-      OR: [{ email }, { phoneNumber }],
-    },
+      OR: [
+         email? {email} : {} ,
+        phoneNumber? {phoneNumber}:{}
+      ]
+    }
   });
 
-  let primaryContact = existingContacts.find((contact) => contact.linkPrecedence === "primary") || existingContacts[0];
-  let secondaryContacts: any[] = [];
-
-  if (primaryContact) {
-    // Get all secondary contacts linked to this primary
-    secondaryContacts = await prisma.contact.findMany({
-      where: { linkedId: primaryContact.id },
-    });
-
-    // If a new email/phone is introduced that does not exist in any records, create a new secondary contact
-    const isNewEmail = email && !existingContacts.some((contact) => contact.email === email);
-    const isNewPhone = phoneNumber && !existingContacts.some((contact) => contact.phoneNumber === phoneNumber);
-
-    if (isNewEmail || isNewPhone) {
-      const newSecondaryContact = await prisma.contact.create({
-        data: {
-          email: email || null,
-          phoneNumber: phoneNumber || null,
-          linkedId: primaryContact.id,
-          linkPrecedence: "secondary",
-        },
-      });
-      secondaryContacts.push(newSecondaryContact);
-    }
-  } else {
-    // No existing contact found, create a new primary contact
-    primaryContact = await prisma.contact.create({
+  if (existingContacts.length === 0) {
+    // No existing contact, create a new primary contact
+    const newContact = await prisma.contact.create({
       data: {
-        email: email || null,
-        phoneNumber: phoneNumber || null,
-        linkPrecedence: "primary",
-      },
+        email,
+        phoneNumber,
+        linkPrecedence: "primary"
+      }
     });
+
+    return {
+      contact: {
+        primaryContatctId: newContact.id,
+        emails: [email],
+        phoneNumbers: [phoneNumber],
+        secondaryContactIds: []
+      }
+    };
   }
 
-  if (!primaryContact) {
-    throw new Error("Failed to create or find a primary contact.");
+  // Find primary contact
+  let primaryContact = existingContacts.find(c => c.linkPrecedence === "primary") || existingContacts[0];
+
+  // Get all related contacts (secondary ones)
+  const allContacts = await prisma.contact.findMany({
+    where: {
+      OR: [
+        { id: primaryContact.id },
+        { linkedId: primaryContact.id }
+      ]
+    }
+  });
+
+  const emails: string[] = [];
+  const phoneNumbers: string[] = [];
+  const secondaryContactIds: number[] = []; 
+
+  allContacts.forEach(contact => {
+    if (contact.email && !emails.includes(contact.email)) emails.push(contact.email);
+    if (contact.phoneNumber && !phoneNumbers.includes(contact.phoneNumber)) phoneNumbers.push(contact.phoneNumber);
+    if (contact.id !== primaryContact.id) secondaryContactIds.push(contact.id);
+  });
+
+  // If the provided email/phone is new, create a secondary contact linked to the primary
+  const isNewEmail = email && !emails.includes(email);
+  const isNewPhone = phoneNumber && !phoneNumbers.includes(phoneNumber);
+
+  if (isNewEmail || isNewPhone) {
+    const newSecondary = await prisma.contact.create({
+      data: {
+        email: isNewEmail ? email : null,
+        phoneNumber: isNewPhone ? phoneNumber : null,
+        linkedId: primaryContact.id,
+        linkPrecedence: "secondary"
+      }
+    });
+
+    secondaryContactIds.push(newSecondary.id);
+    if (newSecondary.email) emails.push(newSecondary.email);
+    if (newSecondary.phoneNumber) phoneNumbers.push(newSecondary.phoneNumber);
   }
 
-
-  // Format the response
   return {
+
+    // returning in format
     contact: {
-      primaryContactId: primaryContact.id,
-      emails: [primaryContact.email, ...secondaryContacts.map((c) => c.email)].filter(Boolean),
-      phoneNumbers: [primaryContact.phoneNumber, ...secondaryContacts.map((c) => c.phoneNumber)].filter(Boolean),
-      secondaryContactIds: secondaryContacts.map((c) => c.id),
-    },
+      primaryContatctId: primaryContact.id,
+      emails,
+      phoneNumbers,
+      secondaryContactIds
+    }
   };
 };
 
